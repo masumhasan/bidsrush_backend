@@ -85,6 +85,44 @@ router.post('/', requireAuth, async (req, res) => {
     }
 });
 
+// List Live Streams (explicit endpoint) - MUST come before /:callId
+router.get('/live', async (req, res) => {
+    try {
+        if (mongoose.connection.readyState === 1) {
+            const streams = await Stream.find({ status: 'active' }).sort({ createdAt: -1 });
+            return res.json(streams);
+        } else {
+            throw new Error('Database not connected');
+        }
+    } catch (error) {
+        console.warn('Database error, falling back to in-memory:', error.message);
+        return res.json(localStreams.filter(s => s.status === 'active').sort((a, b) => b.createdAt - a.createdAt));
+    }
+});
+
+// List Recent Ended Streams - MUST come before /:callId
+router.get('/recent', async (req, res) => {
+    const limit = parseInt(req.query.limit) || 10;
+    
+    try {
+        if (mongoose.connection.readyState === 1) {
+            const streams = await Stream.find({ status: 'ended' })
+                .sort({ endedAt: -1 })
+                .limit(limit);
+            return res.json(streams);
+        } else {
+            throw new Error('Database not connected');
+        }
+    } catch (error) {
+        console.warn('Database error, falling back to in-memory:', error.message);
+        const recentStreams = localStreams
+            .filter(s => s.status === 'ended')
+            .sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0))
+            .slice(0, limit);
+        return res.json(recentStreams);
+    }
+});
+
 // List Active Streams
 router.get('/', async (req, res) => {
     try {
@@ -100,53 +138,55 @@ router.get('/', async (req, res) => {
     }
 });
 
-// Get Stream Details
-router.get('/:callId', async (req, res) => {
+// Get Recorded Streams - MUST come before /:callId
+router.get('/recorded', async (req, res) => {
+    const { userId } = req.query;
+
     try {
         if (mongoose.connection.readyState === 1) {
-            const stream = await Stream.findOne({ callId: req.params.callId });
-            if (!stream) return res.status(404).json({ error: 'Stream not found' });
-            return res.json(stream);
+            console.log('🔍 DB CONNECTED - Querying recorded streams');
+            console.log('🔍 Filter userId:', userId || 'ALL');
+            
+            const query = { 
+                'recording.fileName': { $exists: true, $ne: null }
+            };
+            
+            // Filter by specific user if userId is provided
+            if (userId) {
+                query.hostId = userId;
+            }
+
+            console.log('🔍 Query:', JSON.stringify(query));
+            
+            const streams = await Stream.find(query).sort({ 'recording.recordedAt': -1 });
+            
+            console.log(`🔍 FOUND ${streams.length} recorded streams`);
+            if (streams.length > 0) {
+                streams.forEach(s => {
+                    console.log(`  - ${s.callId}: ${s.title} (file: ${s.recording?.fileName})`);
+                });
+            } else {
+                // Check if there are ANY streams at all
+                const allStreams = await Stream.find({});
+                console.log(`🔍 Total streams in DB: ${allStreams.length}`);
+                if (allStreams.length > 0) {
+                    allStreams.forEach(s => {
+                        console.log(`  - ${s.callId}: recording=${!!s.recording}, fileName=${s.recording?.fileName}`);
+                    });
+                }
+            }
+            
+            return res.json(streams);
         } else {
             throw new Error('Database not connected');
         }
     } catch (error) {
-        console.warn('Database error, falling back to in-memory:', error.message);
-        const stream = localStreams.find(s => s.callId === req.params.callId);
-        if (!stream) return res.status(404).json({ error: 'Stream not found' });
-        return res.json(stream);
+        console.error('Error fetching recorded streams:', error);
+        res.status(500).json({ error: 'Failed to fetch recorded streams' });
     }
 });
 
-// End Stream
-router.post('/:callId/end', requireAuth, async (req, res) => {
-    const { userId } = req.auth;
-    const { callId } = req.params;
-    try {
-        if (mongoose.connection.readyState === 1) {
-            const stream = await Stream.findOne({ callId, hostId: userId });
-            if (!stream) return res.status(404).json({ error: 'Stream not found or unauthorized' });
-
-            stream.status = 'ended';
-            stream.endedAt = new Date();
-            await stream.save();
-            return res.json(stream);
-        } else {
-            throw new Error('Database not connected');
-        }
-    } catch (error) {
-        // Fallback for memory mode
-        const stream = localStreams.find(s => s.callId === callId && s.hostId === userId);
-        if (stream) {
-            stream.status = 'ended';
-            stream.endedAt = new Date();
-            return res.json(stream);
-        }
-        res.status(404).json({ error: 'Stream not found or unauthorized' });
-    }
-});
-
-// Upload Recording
+// Upload Recording - MUST come before /:callId
 router.post('/:callId/recording', requireAuth, upload.single('video'), async (req, res) => {
     const { userId } = req.auth;
     const { callId } = req.params;
@@ -212,55 +252,7 @@ router.post('/:callId/recording', requireAuth, upload.single('video'), async (re
     }
 });
 
-// Get Recorded Streams
-router.get('/recorded', requireAuth, async (req, res) => {
-    const { userId } = req.query;
-
-    try {
-        if (mongoose.connection.readyState === 1) {
-            console.log('🔍 DB CONNECTED - Querying recorded streams');
-            console.log('🔍 Filter userId:', userId || 'ALL');
-            
-            const query = { 
-                'recording.fileName': { $exists: true, $ne: null }
-            };
-            
-            // Filter by specific user if userId is provided
-            if (userId) {
-                query.hostId = userId;
-            }
-
-            console.log('🔍 Query:', JSON.stringify(query));
-            
-            const streams = await Stream.find(query).sort({ 'recording.recordedAt': -1 });
-            
-            console.log(`🔍 FOUND ${streams.length} recorded streams`);
-            if (streams.length > 0) {
-                streams.forEach(s => {
-                    console.log(`  - ${s.callId}: ${s.title} (file: ${s.recording?.fileName})`);
-                });
-            } else {
-                // Check if there are ANY streams at all
-                const allStreams = await Stream.find({});
-                console.log(`🔍 Total streams in DB: ${allStreams.length}`);
-                if (allStreams.length > 0) {
-                    allStreams.forEach(s => {
-                        console.log(`  - ${s.callId}: recording=${!!s.recording}, fileName=${s.recording?.fileName}`);
-                    });
-                }
-            }
-            
-            return res.json(streams);
-        } else {
-            throw new Error('Database not connected');
-        }
-    } catch (error) {
-        console.error('Error fetching recorded streams:', error);
-        res.status(500).json({ error: 'Failed to fetch recorded streams' });
-    }
-});
-
-// Serve Recording Video
+// Serve Recording Video - MUST come before /:callId
 router.get('/:callId/recording/video', async (req, res) => {
     const { callId } = req.params;
 
@@ -311,5 +303,53 @@ router.get('/:callId/recording/video', async (req, res) => {
         res.status(500).json({ error: 'Failed to serve recording' });
     }
 });
+
+// Get Stream Details - MUST come after specific routes like /live, /recent, /recorded, /recording
+router.get('/:callId', async (req, res) => {
+    try {
+        if (mongoose.connection.readyState === 1) {
+            const stream = await Stream.findOne({ callId: req.params.callId });
+            if (!stream) return res.status(404).json({ error: 'Stream not found' });
+            return res.json(stream);
+        } else {
+            throw new Error('Database not connected');
+        }
+    } catch (error) {
+        console.warn('Database error, falling back to in-memory:', error.message);
+        const stream = localStreams.find(s => s.callId === req.params.callId);
+        if (!stream) return res.status(404).json({ error: 'Stream not found' });
+        return res.json(stream);
+    }
+});
+
+// End Stream
+router.post('/:callId/end', requireAuth, async (req, res) => {
+    const { userId } = req.auth;
+    const { callId } = req.params;
+    try {
+        if (mongoose.connection.readyState === 1) {
+            const stream = await Stream.findOne({ callId, hostId: userId });
+            if (!stream) return res.status(404).json({ error: 'Stream not found or unauthorized' });
+
+            stream.status = 'ended';
+            stream.endedAt = new Date();
+            await stream.save();
+            return res.json(stream);
+        } else {
+            throw new Error('Database not connected');
+        }
+    } catch (error) {
+        // Fallback for memory mode
+        const stream = localStreams.find(s => s.callId === callId && s.hostId === userId);
+        if (stream) {
+            stream.status = 'ended';
+            stream.endedAt = new Date();
+            return res.json(stream);
+        }
+        res.status(404).json({ error: 'Stream not found or unauthorized' });
+    }
+});
+
+
 
 module.exports = router;

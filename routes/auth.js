@@ -53,7 +53,9 @@ router.post('/register', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 fullName: user.fullName,
-                imageUrl: user.imageUrl
+                imageUrl: user.imageUrl,
+                mobileNumber: user.mobileNumber,
+                address: user.address
             },
             token
         });
@@ -97,7 +99,9 @@ router.post('/login', async (req, res) => {
                 id: user.id,
                 email: user.email,
                 fullName: user.fullName,
-                imageUrl: user.imageUrl
+                imageUrl: user.imageUrl,
+                mobileNumber: user.mobileNumber,
+                address: user.address
             },
             token
         });
@@ -133,15 +137,26 @@ router.get('/me', requireAuth, async (req, res) => {
 router.patch('/me', requireAuth, async (req, res) => {
     try {
         const { userId } = req.auth;
-        const { fullName, imageUrl } = req.body;
+        const { fullName, imageUrl, email, mobileNumber, address } = req.body;
 
         const user = await User.findOne({ id: userId });
         if (!user) {
             return res.status(404).json({ error: 'User not found' });
         }
 
+        // Check if email is being changed and if it's already taken
+        if (email !== undefined && email !== user.email) {
+            const existingUser = await User.findOne({ email });
+            if (existingUser) {
+                return res.status(400).json({ error: 'Email already in use' });
+            }
+            user.email = email;
+        }
+
         if (fullName !== undefined) user.fullName = fullName;
         if (imageUrl !== undefined) user.imageUrl = imageUrl;
+        if (mobileNumber !== undefined) user.mobileNumber = mobileNumber;
+        if (address !== undefined) user.address = address;
 
         await user.save();
 
@@ -149,7 +164,9 @@ router.patch('/me', requireAuth, async (req, res) => {
             id: user.id,
             email: user.email,
             fullName: user.fullName,
-            imageUrl: user.imageUrl
+            imageUrl: user.imageUrl,
+            mobileNumber: user.mobileNumber,
+            address: user.address
         });
     } catch (error) {
         console.error('Update user error:', error);

@@ -27,6 +27,16 @@ const userSchema = new mongoose.Schema({
     imageUrl: {
         type: String,
         default: null
+    },
+    mobileNumber: {
+        type: String,
+        default: null,
+        trim: true
+    },
+    address: {
+        type: String,
+        default: null,
+        trim: true
     }
 }, {
     timestamps: true
