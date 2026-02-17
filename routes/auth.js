@@ -43,7 +43,7 @@ router.post('/register', async (req, res) => {
 
         // Generate JWT token
         const token = jwt.sign(
-            { userId: user.id, email: user.email },
+            { userId: user.id, email: user.email, role: user.role },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
@@ -55,7 +55,8 @@ router.post('/register', async (req, res) => {
                 fullName: user.fullName,
                 imageUrl: user.imageUrl,
                 mobileNumber: user.mobileNumber,
-                address: user.address
+                address: user.address,
+                role: user.role
             },
             token
         });
@@ -89,7 +90,7 @@ router.post('/login', async (req, res) => {
 
         // Generate JWT token
         const token = jwt.sign(
-            { userId: user.id, email: user.email },
+            { userId: user.id, email: user.email, role: user.role },
             JWT_SECRET,
             { expiresIn: JWT_EXPIRES_IN }
         );
@@ -101,7 +102,8 @@ router.post('/login', async (req, res) => {
                 fullName: user.fullName,
                 imageUrl: user.imageUrl,
                 mobileNumber: user.mobileNumber,
-                address: user.address
+                address: user.address,
+                role: user.role
             },
             token
         });
@@ -125,7 +127,8 @@ router.get('/me', requireAuth, async (req, res) => {
             id: user.id,
             email: user.email,
             fullName: user.fullName,
-            imageUrl: user.imageUrl
+            imageUrl: user.imageUrl,
+            role: user.role
         });
     } catch (error) {
         console.error('Get user error:', error);

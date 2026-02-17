@@ -19,7 +19,11 @@ console.log('Attempting to connect to MongoDB...', mongoUrl.replace(/:([^:@]{1,}
 mongoose.connect(mongoUrl, {
     serverSelectionTimeoutMS: 5000 // Timeout after 5s instead of 30s
 })
-    .then(() => console.log('MongoDB Connected Successfully'))
+    .then(() => {
+        console.log('MongoDB Connected Successfully');
+        // Seed superadmin user on startup
+        seedSuperAdmin();
+    })
     .catch(err => {
         console.warn('MongoDB Connection Failed (Falling back to in-memory mode):', err.message);
         // Do not exit process, let the app run with in-memory fallback
@@ -29,10 +33,15 @@ mongoose.connect(mongoUrl, {
 const authRoutes = require('./routes/auth');
 const streamRoutes = require('./routes/stream');
 const productRoutes = require('./routes/products');
+const adminRoutes = require('./routes/admin');
+
+// Seed script
+const seedSuperAdmin = require('./scripts/seedSuperadmin');
 
 app.use('/api/auth', authRoutes);
 app.use('/api/stream', streamRoutes);
 app.use('/api/products', productRoutes);
+app.use('/api/admin', adminRoutes);
 
 app.get('/', (req, res) => {
     res.send('Live Commerce Backend Running');
