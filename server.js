@@ -34,6 +34,8 @@ const authRoutes = require('./routes/auth');
 const streamRoutes = require('./routes/stream');
 const productRoutes = require('./routes/products');
 const adminRoutes = require('./routes/admin');
+const sellerRoutes = require('./routes/seller');
+const categoryRoutes = require('./routes/categories');
 
 // Seed script
 const seedSuperAdmin = require('./scripts/seedSuperadmin');
@@ -42,6 +44,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/stream', streamRoutes);
 app.use('/api/products', productRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/seller', sellerRoutes);
+app.use('/api/categories', categoryRoutes);
 
 app.get('/', (req, res) => {
     res.send('Live Commerce Backend Running');

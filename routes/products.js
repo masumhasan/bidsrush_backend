@@ -3,12 +3,13 @@ const router = express.Router();
 const mongoose = require('mongoose');
 const Product = require('../models/Product');
 const requireAuth = require('../middleware/auth');
+const { requireSeller } = require('../middleware/adminAuth');
 
 // In-Memory Storage for Fallback
 let localProducts = [];
 
-// Create Product
-router.post('/', requireAuth, async (req, res) => {
+// Create Product (requires seller role)
+router.post('/', requireSeller, async (req, res) => {
     const { userId } = req.auth;
     const { name, description, price, imageUrl } = req.body;
 
@@ -54,7 +55,9 @@ router.post('/', requireAuth, async (req, res) => {
 router.get('/', async (req, res) => {
     try {
         if (mongoose.connection.readyState === 1) {
-            const products = await Product.find().sort({ createdAt: -1 });
+            const products = await Product.find()
+                .populate('categoryId', 'name icon imageUrl')
+                .sort({ createdAt: -1 });
             return res.json(products);
         } else {
             throw new Error('Database not connected');

@@ -7,6 +7,7 @@ const fs = require('fs');
 const streamClient = require('../lib/stream');
 const Stream = require('../models/Stream');
 const requireAuth = require('../middleware/auth');
+const { requireSeller } = require('../middleware/adminAuth');
 
 // In-Memory Storage for Fallback
 let localStreams = [];
@@ -45,8 +46,8 @@ router.get('/token', requireAuth, async (req, res) => {
     }
 });
 
-// Create Stream (Start Broadcast)
-router.post('/', requireAuth, async (req, res) => {
+// Create Stream (Start Broadcast) - requires seller role
+router.post('/', requireSeller, async (req, res) => {
     const { userId } = req.auth;
     const { callId, title, isRecordingEnabled } = req.body;
 

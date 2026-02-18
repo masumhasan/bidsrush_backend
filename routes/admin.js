@@ -172,9 +172,9 @@ router.put('/assign-role/:userId', requireSuperAdmin, async (req, res) => {
         const { role } = req.body;
 
         // Validate role
-        if (!role || !['user', 'admin', 'superadmin'].includes(role)) {
+        if (!role || !['user', 'seller', 'admin', 'superadmin'].includes(role)) {
             return res.status(400).json({ 
-                error: 'Invalid role. Must be: user, admin, or superadmin' 
+                error: 'Invalid role. Must be: user, seller, admin, or superadmin' 
             });
         }
 
