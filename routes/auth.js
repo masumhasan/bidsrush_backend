@@ -177,6 +177,107 @@ router.patch('/me', requireAuth, async (req, res) => {
     }
 });
 
+// Change password (protected route)
+router.post('/change-password', requireAuth, async (req, res) => {
+    try {
+        const { userId } = req.auth;
+        const { currentPassword, newPassword } = req.body;
+
+        // Validate input
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: 'Current password and new password are required' });
+        }
+
+        if (newPassword.length < 8) {
+            return res.status(400).json({ error: 'New password must be at least 8 characters' });
+        }
+
+        // Find user
+        const user = await User.findOne({ id: userId });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Verify current password
+        const isPasswordValid = await user.comparePassword(currentPassword);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Current password is incorrect' });
+        }
+
+        // Update password (pre-save hook will hash it)
+        user.password = newPassword;
+        await user.save();
+
+        res.json({ message: 'Password changed successfully' });
+    } catch (error) {
+        console.error('Change password error:', error);
+        res.status(500).json({ error: 'Failed to change password' });
+    }
+});
+
+// Change email (protected route)
+router.post('/change-email', requireAuth, async (req, res) => {
+    try {
+        const { userId } = req.auth;
+        const { password, newEmail } = req.body;
+
+        // Validate input
+        if (!password || !newEmail) {
+            return res.status(400).json({ error: 'Password and new email are required' });
+        }
+
+        // Validate email format
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+        if (!emailRegex.test(newEmail)) {
+            return res.status(400).json({ error: 'Invalid email format' });
+        }
+
+        // Find user
+        const user = await User.findOne({ id: userId });
+        if (!user) {
+            return res.status(404).json({ error: 'User not found' });
+        }
+
+        // Verify password
+        const isPasswordValid = await user.comparePassword(password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: 'Password is incorrect' });
+        }
+
+        // Check if new email is already in use
+        const existingUser = await User.findOne({ email: newEmail });
+        if (existingUser) {
+            return res.status(400).json({ error: 'Email already in use' });
+        }
+
+        // Update email
+        user.email = newEmail;
+        await user.save();
+
+        // Generate new token with updated email
+        const token = jwt.sign(
+            { userId: user.id, email: user.email, role: user.role },
+            JWT_SECRET,
+            { expiresIn: JWT_EXPIRES_IN }
+        );
+
+        res.json({
+            message: 'Email changed successfully',
+            user: {
+                id: user.id,
+                email: user.email,
+                fullName: user.fullName,
+                imageUrl: user.imageUrl,
+                role: user.role
+            },
+            token
+        });
+    } catch (error) {
+        console.error('Change email error:', error);
+        res.status(500).json({ error: 'Failed to change email' });
+    }
+});
+
 // Logout (client-side only, but can be used for token blacklisting if needed)
 router.post('/logout', requireAuth, (req, res) => {
     // In a JWT-based auth, logout is handled client-side by removing the token

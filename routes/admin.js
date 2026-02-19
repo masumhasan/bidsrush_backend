@@ -220,6 +220,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
         const totalUsers = await User.countDocuments();
         const adminCount = await User.countDocuments({ role: 'admin' });
         const superadminCount = await User.countDocuments({ role: 'superadmin' });
+        const sellerCount = await User.countDocuments({ role: 'seller' });
         const regularUserCount = await User.countDocuments({ role: 'user' });
 
         // Get recent users (last 30 days)
@@ -234,6 +235,7 @@ router.get('/stats', requireAdmin, async (req, res) => {
                 total: totalUsers,
                 admins: adminCount,
                 superadmins: superadminCount,
+                sellers: sellerCount,
                 regular: regularUserCount,
                 recent: recentUsers
             }
